@@ -1,0 +1,129 @@
+using System;
+using UnityEngine;
+
+
+namespace MyKSPMod
+{
+    [KSPAddon(KSPAddon.Startup.EditorAny, false)]
+    public class MyModMain : MonoBehaviour
+    {
+        private bool showGUI = false;
+        private Rect mainWindowRect = new Rect(100, 100, 400, 300);
+        private bool showEngineList = false;
+        private Rect engineWindowRect = new Rect(150, 150, 250, 300);
+
+        void Start()
+        {
+            Debug.Log("[MyKSPMod] Mod Initialized in Editor!");
+            RefreshEngineParts();
+        }
+
+
+        void OnGUI()
+        {
+            if (showGUI)
+            {
+                mainWindowRect = GUILayout.Window(1234, mainWindowRect, DrawMainWindow, "My KSP Mod");
+            }
+            if (showEngineList)
+            {
+                engineWindowRect = GUILayout.Window(5678, engineWindowRect, DrawEngineWindow, "Select an Engine");
+            }
+        }
+
+        private int selectedPartIndex = 0;
+        private string[] engineParts = new string[] { "None" };
+        private float[] engineWeights;
+        private float[] engineThrusts;
+        private float[] engineISPs;
+        private string[] engineFuels;
+
+        void DrawMainWindow(int windowID)
+        {
+            if (GUILayout.Button("Select an Engine"))
+            {
+                showEngineList = true;
+            }
+
+            GUILayout.Label("Selected Engine: " + engineParts[selectedPartIndex]);
+            if (selectedPartIndex > 0 && selectedPartIndex < engineParts.Length)
+            {
+                GUILayout.Label("Weight: " + engineWeights[selectedPartIndex] + " t");
+                GUILayout.Label("Thrust: " + engineThrusts[selectedPartIndex] + " kN");
+                GUILayout.Label("ISP: " + engineISPs[selectedPartIndex] + " s");
+                GUILayout.Label("Fuel Type: " + engineFuels[selectedPartIndex]);
+            }
+
+            if (GUILayout.Button("Close"))
+            {
+                showGUI = false;
+            }
+            GUI.DragWindow();
+        }
+        void DrawEngineWindow(int windowID)
+        {
+            GUILayout.Label("Select an engine part:");
+            int newSelectedIndex = GUILayout.SelectionGrid(selectedPartIndex, engineParts, engineParts.Length/30);
+            if (newSelectedIndex != selectedPartIndex)
+            {
+                selectedPartIndex = newSelectedIndex;
+                showEngineList = false;
+            }
+            GUI.DragWindow();
+        }
+
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.F2))
+            {
+                showGUI = !showGUI;
+            }
+        }
+
+        void RefreshEngineParts()
+        {
+            var availableParts = PartLoader.LoadedPartsList;
+            var enginePartList = new System.Collections.Generic.List<string>();
+            var weightList = new System.Collections.Generic.List<float>();
+            var thrustList = new System.Collections.Generic.List<float>();
+            var ispList = new System.Collections.Generic.List<float>();
+            var fuelList = new System.Collections.Generic.List<string>();
+
+            foreach (var part in availableParts)
+            {
+                if (part.partPrefab != null && (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX")))
+                {
+                    enginePartList.Add(part.title);
+                    weightList.Add(part.partPrefab.mass);
+
+                    var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
+                    if (engineModule != null)
+                    {
+                        thrustList.Add(engineModule.maxThrust);
+                        ispList.Add(engineModule.atmosphereCurve.Evaluate(0));
+                        
+                        string fuels = "";
+                        foreach (var propellant in engineModule.propellants)
+                        {
+                            fuels += propellant.name + ", ";
+                        }
+                        if (fuels.Length > 2) fuels = fuels.Substring(0, fuels.Length - 2);
+                        fuelList.Add(fuels);
+                    }
+                    else
+                    {
+                        thrustList.Add(0);
+                        ispList.Add(0);
+                        fuelList.Add("Unknown");
+                    }
+                }
+            }
+
+            engineParts = enginePartList.Count > 0 ? enginePartList.ToArray() : new string[] { "None" };
+            engineWeights = weightList.ToArray();
+            engineThrusts = thrustList.ToArray();
+            engineISPs = ispList.ToArray();
+            engineFuels = fuelList.ToArray();
+        }
+    }
+}

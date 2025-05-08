@@ -25,7 +25,7 @@ namespace ShipEngineOptimization
             return c;
         }
 
-        public static float TotalWeightFromDv(float weightEng, float thrust, float isp, float wdr, float dv, float payload, int numEng)
+        public static float TotalWeightFromDv(float weightEng, float thrust, float isp, float wdr, float dv, float payload, int qtyEng)
         {
             //if (wdr == 1)
             //{
@@ -35,7 +35,7 @@ namespace ShipEngineOptimization
             //{
 
             //}
-            float a = (payload + (float)numEng * weightEng) * (1 + wdr / ((wdr - 1) / (Mathf.Exp(dv / (sGravi * isp)) - 1) - 1));
+            float a = (payload + (float)qtyEng * weightEng) * (1 + wdr / ((wdr - 1) / (Mathf.Exp(dv / (sGravi * isp)) - 1) - 1));
             return a;
         }
 

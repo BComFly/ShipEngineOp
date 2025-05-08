@@ -355,19 +355,19 @@ namespace ShipEngineOptimization
                     switch (xOption)
                     {
                         case 0: // set dv
-                            if (data.wdr != 1.0f)
+                            if (SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]] != 1.0f)
                             {
-                                allPtsTotalWeight[idx][i] = SEO_Functions.TotalWeightFromDv(data.weight, data.thrust, data.isp, data.wdr, setDv, payload, numEngNets[idx][i]);
+                                allPtsTotalWeight[idx][i] = SEO_Functions.TotalWeightFromDv(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]], setDv, payload, numEngNets[idx][i]);
                                 allPtsX[idx][i] = numEngNets[idx][i] * data.thrust / (allPtsTotalWeight[idx][i] * SEO_Functions.sGravi);
                             }
                             break;
                         case 1: // set TWR
-                            if (data.wdr != 1.0f && data.thrust / (SEO_Functions.sGravi * data.weight) > setTWR)
+                            if (SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]] != 1.0f && data.thrust / (SEO_Functions.sGravi * data.weight) > setTWR)
                             {
                                 //if (EngDrawMain.engineThrusts[engineIndexes[eng]] / (EngineFunctions.sGravi * EngDrawMain.engineWeights[engineIndexes[eng]]) <= setTWR)
                                 //    { continue; }
                                 allPtsTotalWeight[idx][i] = (numEngNets[idx][i] * data.thrust) / (SEO_Functions.sGravi * setTWR);
-                                allPtsX[idx][i] = SEO_Functions.DvFromTwr(data.weight, data.thrust, data.isp, data.wdr, allPtsTotalWeight[idx][i], payload, numEngNets[idx][i]);
+                                allPtsX[idx][i] = SEO_Functions.DvFromTwr(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]], allPtsTotalWeight[idx][i], payload, numEngNets[idx][i]);
                             }
                             break;
                     }
@@ -720,9 +720,9 @@ namespace ShipEngineOptimization
             foreach (string engine in SEO_Main.selectedEngine)
             {
                 var data = SEO_Main.engineData[engine];
-                if (data.wdr == 1.0f)
+                if (SEO_Main.currentWdr[engine] == 1.0f)
                 { continue; }
-                dvMax.Add(data.isp * SEO_Functions.sGravi * Mathf.Log(data.wdr));
+                dvMax.Add(data.isp * SEO_Functions.sGravi * Mathf.Log(SEO_Main.currentWdr[engine]));
             }
             globalDvRange[0] = dvMax.Where(x => x > 0.0f).DefaultIfEmpty().Min();
             globalDvRange[1] = dvMax.Where(x => x > 0.0f).DefaultIfEmpty().Max();
@@ -735,7 +735,7 @@ namespace ShipEngineOptimization
             float[] y = new float[num_pts + 1];
             for (int i = 0; i <= num_pts; i++)
             {
-                y[i] = SEO_Functions.DvLimit(data.weight, data.thrust, data.isp, data.wdr, x[i]);
+                y[i] = SEO_Functions.DvLimit(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[engine], x[i]);
 
             }
             return y;
@@ -744,7 +744,7 @@ namespace ShipEngineOptimization
         //{
         //    var data = EngDrawMain.engineData[engine];
         //    float y;
-        //    y = EngineFunctions.TotalWeightFromDv(data.weight, data.thrust, data.isp, data.wdr, setValue, payload, num);
+        //    y = EngineFunctions.TotalWeightFromDv(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]], setValue, payload, num);
         //    //for (int i = 0; i < x.Length; i++)
         //    //{
         //    //    y = EngineFunctions.vesselWeight(EngDrawMain.engineWeights[index], EngDrawMain.engineThrusts[index], EngDrawMain.engineISPs[index], (float)EngDrawMain.engineWDRs[index], setValue, vesselMass, num);

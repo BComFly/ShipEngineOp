@@ -29,6 +29,7 @@ namespace ShipEngineOptimization
         {
             Debug.Log("[EngDraw] Mod Initialized in Editor!");
             RefreshEngineParts();
+            //InitializeEngineParts();
             fuelTypes = groupedEngines.Keys.ToArray();
 
             if (ApplicationLauncher.Instance != null)
@@ -84,12 +85,31 @@ namespace ShipEngineOptimization
         //public static float[] engineWDRs;
         public static Dictionary<string, List<string>> groupedEngines = new Dictionary<string, List<string>>();
         public static Dictionary<string, (float weight, float thrust, float isp, float wdr)> engineData = new Dictionary<string, (float, float, float, float)>();
+        //public static Dictionary<string, float?> customWdrValues = new Dictionary<string, float?>();
         private Vector2 scrollPosition_eng = Vector2.zero;
         private Vector2 scrollPosition_fuel = Vector2.zero;
 
         private string[] selectedFuelType = { "None", "None", "None" };
         private string[] fuelTypes;
         private int[] selectedFuelIndex = new int[3];
+
+        public static Dictionary<string, float> currentWdr = new Dictionary<string, float>()
+        {
+            {"None", 1f }
+        };
+        public static Dictionary<string, float> wdrValues = new Dictionary<string, float>()
+        {
+            { "LiquidFuel", 9f },
+            { "LiquidFuel, Oxidizer", 9f },
+            { "MonoPropellant", 5f },
+            { "XenonGas", 4f },
+            { "ArgonGas", 4f },
+            { "Lithium", 4f },
+            { "LqdHydrogen, Oxidizer", 8.24f },
+            { "LqdMethane, Oxidizer", 8.5f },
+            { "LqdHydrogen", 6f },
+            { "LqdMethane", 6f }
+        };
 
         void DrawMainWindow(int windowID)
         {
@@ -110,14 +130,57 @@ namespace ShipEngineOptimization
 
                 GUILayout.Box(selectedEngine[idx], GUILayout.Width(mainWndWidth / 3 - 10));
 
+                GUILayout.BeginHorizontal();
+
+                GUILayout.BeginVertical();
+                //if (selectedEngine[idx] != "None" && engineData.ContainsKey(selectedEngine[idx]))
+                //{
+                //    var data = engineData[selectedEngine[idx]];
+                //    //GUILayout.Label(data.weight.ToString() + " t");
+                //    //GUILayout.Label(data.thrust.ToString("F1") + " kN");
+                //    //GUILayout.Label(data.isp.ToString("F0") + " s");
+                //    //GUILayout.Label(data.wdr.ToString());
+
+                //    GUILayout.Label("Weight: " + data.weight.ToString("F0") + " t");
+                //    GUILayout.Label("Thrust: " + data.thrust.ToString("F1") + " kN");
+                //    GUILayout.Label("ISP: " + data.isp.ToString("F0") + " s");
+                //    GUILayout.Label("Wet/Dry: " + data.wdr);
+                //}
+                GUILayout.Label("Weight: ");
+                GUILayout.Label("Thrust: ");
+                GUILayout.Label("ISP: ");
+                GUILayout.Label("Wet/Dry: ");
+                GUILayout.EndVertical();
+
+                GUILayout.BeginVertical();
                 if (selectedEngine[idx] != "None" && engineData.ContainsKey(selectedEngine[idx]))
                 {
                     var data = engineData[selectedEngine[idx]];
-                    GUILayout.Label("Weight: " + data.weight + " t");
-                    GUILayout.Label("Thrust: " + data.thrust + " kN");
-                    GUILayout.Label("ISP: " + data.isp + " s");
-                    GUILayout.Label("Wet/Dry: " + data.wdr);
+                    GUILayout.Label(data.weight.ToString() + " t");
+                    GUILayout.Label(data.thrust.ToString("F1") + " kN");
+                    GUILayout.Label(data.isp.ToString("F0") + " s");
+                    //GUILayout.Label(data.wdr.ToString());
+
+                    float currentValue = currentWdr.ContainsKey(selectedEngine[idx]) ? currentWdr[selectedEngine[idx]] : data.wdr;
+                    string wdrStr = GUILayout.TextField(currentValue.ToString("F2"), GUILayout.Width(40));
+                    if (float.TryParse(wdrStr, out float newWdr))
+                    {
+                        currentWdr[selectedEngine[idx]] = newWdr;
+                    }
+
+                    //float currentWdr = customWdrValues.ContainsKey(selectedEngine[idx]) && customWdrValues[selectedEngine[idx]].HasValue
+                    //    ? customWdrValues[selectedEngine[idx]].Value
+                    //    : data.wdr;
+
+                    //string wdrStr = GUILayout.TextField(currentWdr.ToString("F2"));
+                    //if (float.TryParse(wdrStr, out float newWdr))
+                    //{
+                    //    customWdrValues[selectedEngine[idx]] = newWdr;
+                    //}
                 }
+                GUILayout.EndVertical();
+
+                GUILayout.EndHorizontal();
 
                 GUILayout.EndVertical();
             }
@@ -129,6 +192,7 @@ namespace ShipEngineOptimization
             //GUILayout.Label("Altitude (Kerbin): " + (selectedAltitude / 1000).ToString("F3") + " km");
             //logAltitude = GUILayout.HorizontalSlider(logAltitude, 0f, Mathf.Log(70000f), GUILayout.Width(200));
             //selectedAltitude = Mathf.Exp(logAltitude);
+            //UpdateEnginePerformance();
             RefreshEngineParts();
 
             GUILayout.Space(10); // Add spacing before the separation line
@@ -141,6 +205,14 @@ namespace ShipEngineOptimization
                 showNumEng = false;
                 showDvLimit = false;
             }
+            //if (GUILayout.Button("Engine Performance Chart"))
+            //{
+            //    showNumEng = true;
+            //}
+            //if (GUILayout.Button("Delta-v Limit Graph"))
+            //{
+            //    showDvLimit = true;
+            //}
             if (GUILayout.Button("Engine Performance Chart") && selectedEngine.Count(eng => eng == "None") != selectedEngine.Count())
             {
                 showNumEng = true;
@@ -209,28 +281,62 @@ namespace ShipEngineOptimization
                 }
             }
 
-            //foreach (var fuelType in groupedEngines.Keys)
-            //{
-            //    GUILayout.Label(fuelType, GUI.skin.box);
-            //    foreach (var engine in groupedEngines[fuelType])
-            //    {
-            //        if (GUILayout.Button(engine))
-            //        {
-            //            selectedEngine[indexEngine] = engine;
-            //            showEngineList = false;
-            //        }
-            //    }
-            //}
-
             GUILayout.EndScrollView();
             GUI.DragWindow();
         }
 
-        //void Update()
+        //void InitializeEngineParts()
         //{
-        //    if (Input.GetKeyDown(KeyCode.F2))
+        //    var availableParts = PartLoader.LoadedPartsList;
+        //    groupedEngines.Clear();
+        //    engineData.Clear();
+
+        //    groupedEngines.Add("None", new List<string> { "None" });
+
+        //    foreach (var part in availableParts)
         //    {
-        //        showMainWindow = !showMainWindow;
+        //        if (part.partPrefab != null && (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX")))
+        //        {
+        //            var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
+        //            if (engineModule != null)
+        //            {
+        //                var propellantNames = string.Join(", ", engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge" && p != "IntakeAir"));
+        //                if (propellantNames.Contains("SolidFuel")) continue;
+
+        //                if (!groupedEngines.ContainsKey(propellantNames))
+        //                {
+        //                    groupedEngines[propellantNames] = new List<string>();
+        //                }
+        //                groupedEngines[propellantNames].Add(part.title);
+
+        //                float weight = part.partPrefab.mass;
+        //                float wdrValue = wdrValues.ContainsKey(propellantNames) ? wdrValues[propellantNames] : 1f;
+
+        //                engineData[part.title] = (weight, 0, 0, wdrValue);
+        //            }
+        //        }
+        //    }
+        //    fuelTypes = groupedEngines.Keys.ToArray();
+        //}
+
+        //void UpdateEnginePerformance()
+        //{
+        //    foreach (var key in engineData.Keys.ToList())
+        //    {
+        //        var part = PartLoader.LoadedPartsList.FirstOrDefault(p => p.title == key);
+        //        var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
+        //        if (engineModule != null)
+        //        {
+        //            float pressure = (float)(FlightGlobals.getStaticPressure(selectedAltitude, Planetarium.fetch.Home) / FlightGlobals.getStaticPressure(0, Planetarium.fetch.Home));
+        //            float ispAtAltitude = engineModule.atmosphereCurve.Evaluate(pressure);
+        //            float thrustAtAltitude = (ispAtAltitude / engineModule.atmosphereCurve.Evaluate(0)) * engineModule.maxThrust;
+
+        //            //float pressure = (float)FlightGlobals.getStaticPressure(selectedAltitude, Planetarium.fetch.Home);
+        //            //float ispAtAltitude = engineModule.atmosphereCurve.Evaluate(pressure);
+        //            //float thrustAtAltitude = (ispAtAltitude / engineModule.atmosphereCurve.Evaluate(1)) * engineModule.maxThrust;
+
+        //            engineData[key] = (engineData[key].weight, thrustAtAltitude, ispAtAltitude, engineData[key].wdr);
+        //        }
         //    }
         //}
 
@@ -245,6 +351,8 @@ namespace ShipEngineOptimization
 
             engineData.Clear();
             groupedEngines.Clear();
+            //currentWdr.Clear();
+
             groupedEngines.Add("None", new List<string> { "None" });
             engineData["None"] = (0, 0, 0, 1);
 
@@ -252,92 +360,28 @@ namespace ShipEngineOptimization
             {
                 if (part.partPrefab != null && (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX")))
                 {
-                    //enginePartList.Add(part.title);
-                    //weightList.Add(part.partPrefab.mass);
-
                     var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
                     if (engineModule != null)
                     {
-                        var propellantNames = engineModule.propellants.Select(p => p.name).ToList();
+                        var propellantNames = string.Join(", ", engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge" && p != "IntakeAir"));
                         if (propellantNames.Contains("SolidFuel")) continue;
 
-                        string fuelType = string.Join(", ", propellantNames);
-                        if (!groupedEngines.ContainsKey(fuelType))
+                        if (!groupedEngines.ContainsKey(propellantNames))
                         {
-                            groupedEngines[fuelType] = new List<string>();
+                            groupedEngines[propellantNames] = new List<string>();
                         }
-                        groupedEngines[fuelType].Add(part.title);
-
-                        //enginePartList.Add(part.title);
-                        //weightList.Add(part.partPrefab.mass);
+                        groupedEngines[propellantNames].Add(part.title);
 
                         float weight = part.partPrefab.mass;
                         float pressure = (float)(FlightGlobals.getStaticPressure(selectedAltitude, Planetarium.fetch.Home) / FlightGlobals.getStaticPressure(0, Planetarium.fetch.Home));
                         float ispAtAltitude = engineModule.atmosphereCurve.Evaluate(pressure);
                         float thrustAtAltitude = (ispAtAltitude / engineModule.atmosphereCurve.Evaluate(0)) * engineModule.maxThrust;
+                        float wdrValue = wdrValues.ContainsKey(propellantNames) ? wdrValues[propellantNames] : 1f;
 
-                        //thrustList.Add(thrustAtAltitude);
-                        //ispList.Add(ispAtAltitude);
-
-                        float wdrValue = 1f;
-
-                        if (propellantNames.Contains("LiquidFuel")) wdrValue = 9f;
-                        else if (propellantNames.Contains("MonoPropellant")) wdrValue = 5f;
-                        else if (propellantNames.Contains("XenonGas") || propellantNames.Contains("ArgonGas") || propellantNames.Contains("Lithium"))
-                            wdrValue = 4f;
-                        else if (propellantNames.Contains("LqdHydrogen") && propellantNames.Contains("Oxidizer"))
-                            wdrValue = 8.24f;
-                        else if (propellantNames.Contains("LqdMethane") && propellantNames.Contains("Oxidizer"))
-                            wdrValue = 8.5f;
-                        else if (propellantNames.Contains("LqdHydrogen") || propellantNames.Contains("LqdMethane"))
-                            wdrValue = 6f;
-
-
-                        //foreach (var propellant in engineModule.propellants)
-                        //{
-                        //    switch (propellant.name)
-                        //    {
-                        //        case "LiquidFuel":
-                        //            wdrValue = 9f;
-                        //            break;
-                        //        case "MonoPropellant":
-                        //            wdrValue = 5f;
-                        //            break;
-                        //        case "XenonGas":
-                        //            wdrValue = 4f;
-                        //            break;
-                        //        case "LqdHydrogen":
-                        //            wdrValue = 9f;
-                        //            break;
-                        //        case "LqdMethane":
-                        //            wdrValue = 9f;
-                        //            break;
-                        //        case "ArgonGas":
-                        //            wdrValue = 4f;
-                        //            break;
-                        //        case "Lithium":
-                        //            wdrValue = 4f;
-                        //            break;
-                        //    }
-                        //    if (wdrValue > 1) break;
-                        //}
-                        //wdrList.Add(wdrValue);
                         engineData[part.title] = (weight, thrustAtAltitude, ispAtAltitude, wdrValue);
                     }
-                    //else
-                    //{
-                    //    thrustList.Add(0);
-                    //    ispList.Add(0);
-                    //    wdrList.Add(1);
-                    //}
-                    
                 }
             }
-
-            //engineWeights = weightList.ToArray();
-            //engineThrusts = thrustList.ToArray();
-            //engineISPs = ispList.ToArray();
-            //engineWDRs = wdrList.ToArray();
         }
     }
 }

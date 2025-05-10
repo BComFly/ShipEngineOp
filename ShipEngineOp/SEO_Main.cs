@@ -11,17 +11,21 @@ namespace ShipEngineOptimization
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class SEO_Main : MonoBehaviour
     {
-        private static bool showMainWindow = false;
-        private static bool showEngineList = false;
+        public static bool showMainWindow = false;
+        public static bool showIndiWindow = false;
+        public static bool showEngineList = false;
         public static bool showDvLimit = false;
         public static bool showNumEng = false;
-        public const int mainWndWidth = 660;
-        public const int mainWndHeight = 200;
+        public static bool showGrossSort = false;
+        public const int indiWndWidth = 660;
+        public const int indiWndHeight = 200;
         public const int dvWndWidth = 700;
-        public static Rect mainWndRect = new Rect(400, 200, mainWndWidth, mainWndHeight);
-        public static Rect dvWndRect = new Rect(600, 200, dvWndWidth, mainWndHeight);
-        public static Rect numWndRect = new Rect(600, 200, dvWndWidth, mainWndHeight);
+        public static Rect mainWndRect = new Rect(600, 200, 250, 200);
+        public static Rect indiWndRect = new Rect(400, 200, indiWndWidth, indiWndHeight);
+        public static Rect dvWndRect = new Rect(600, 200, dvWndWidth, indiWndHeight);
+        public static Rect numWndRect = new Rect(600, 200, dvWndWidth, indiWndHeight);
         public static Rect engineWndRect = new Rect(400, 400, 250, 300);
+        public static Rect GrossSortWndRect = new Rect(600, 200, 600, 300);
 
         private ApplicationLauncherButton appButton;
 
@@ -57,7 +61,11 @@ namespace ShipEngineOptimization
         {
             if (showMainWindow)
             {
-                mainWndRect = GUILayout.Window(8881, mainWndRect, DrawMainWindow, "Ship Engine Optimization");
+                mainWndRect = GUILayout.Window(8880, mainWndRect, DrawMainWindow, "Ship Engine Optimization");
+            }
+            if (showIndiWindow)
+            {
+                indiWndRect = GUILayout.Window(8881, indiWndRect, DrawIndiWindow, "Individual Comparison");
             }
             if (showDvLimit)
             {
@@ -71,10 +79,14 @@ namespace ShipEngineOptimization
             {
                 engineWndRect = GUILayout.Window(8884, engineWndRect, DrawEngineWindow, "Engine Selection List");
             }
+            if (showGrossSort)
+            {
+                GrossSortWndRect = GUILayout.Window(9101, GrossSortWndRect, SEO_GraphWindow.DrawGrossSort, "Gross Comparison");
+            }
         }
 
         //public static int[] engineIndexes = new int[] { 0, 0, 0 };
-        private float selectedAltitude = 70000f;
+        static float selectedAltitude = 70000f;
         //private float logAltitude = Mathf.Log(70000f);
         public static int indexEngine = 0;
         //public static string[] engineParts = new string[] { "None" };
@@ -90,7 +102,7 @@ namespace ShipEngineOptimization
         private Vector2 scrollPosition_fuel = Vector2.zero;
 
         private string[] selectedFuelType = { "None", "None", "None" };
-        private string[] fuelTypes;
+        public static string[] fuelTypes;
         private int[] selectedFuelIndex = new int[3];
 
         public static Dictionary<string, float> currentWdr = new Dictionary<string, float>()
@@ -117,18 +129,42 @@ namespace ShipEngineOptimization
             {
                 showMainWindow = false;
             }
+
+            GUILayout.BeginVertical();
+
+            if (GUILayout.Button("Compare\nAll Engines at Once", GUILayout.Height(100)))
+            {
+                showGrossSort = true;
+            }
+            
+            if (GUILayout.Button("Compare\nupto 3 Individual Engines", GUILayout.Height(100)))
+            {
+                //OpenIndiWindow();
+                showIndiWindow = true;
+            }
+            
+            GUILayout.EndVertical();
+            GUI.DragWindow();
+        }
+
+        void DrawIndiWindow(int windowID)
+        {
+            if (GUI.Button(new Rect(indiWndRect.size.x - 17, 2, 15, 15), ""))
+            {
+                showIndiWindow = false;
+            }
             GUILayout.BeginHorizontal();
 
             for (int idx = 0; idx < selectedEngine.Length; idx++)
             {
-                GUILayout.BeginVertical(GUILayout.Width(mainWndWidth/3 - 10));
+                GUILayout.BeginVertical(GUILayout.Width(indiWndWidth/3 - 10));
                 if (GUILayout.Button("Engine " + (idx + 1).ToString()))
                 {
                     showEngineList = true;
                     indexEngine = idx;
                 }
 
-                GUILayout.Box(selectedEngine[idx], GUILayout.Width(mainWndWidth / 3 - 10));
+                GUILayout.Box(selectedEngine[idx], GUILayout.Width(indiWndWidth / 3 - 10));
 
                 GUILayout.BeginHorizontal();
 
@@ -182,18 +218,27 @@ namespace ShipEngineOptimization
 
                 GUILayout.EndHorizontal();
 
+                if (GUILayout.Button("Apply to Fuel Type"))
+                {
+                    string engineFuelType = groupedEngines.FirstOrDefault(kvp => kvp.Value.Contains(selectedEngine[idx])).Key;
+                    if (!string.IsNullOrEmpty(engineFuelType) && groupedEngines.ContainsKey(engineFuelType))
+                    {
+                        foreach (var engine in groupedEngines[engineFuelType])
+                        {
+                            currentWdr[engine] = currentWdr[selectedEngine[idx]];
+                        }
+                    }
+                }
+
                 GUILayout.EndVertical();
             }
 
             GUILayout.EndHorizontal();
 
-            GUILayout.Label("Altitude (Kerbin): " + (selectedAltitude / 1000).ToString("F0") + " km");
-            selectedAltitude = GUILayout.HorizontalSlider(selectedAltitude, 0f, 70000f, GUILayout.Width(200));
-            //GUILayout.Label("Altitude (Kerbin): " + (selectedAltitude / 1000).ToString("F3") + " km");
-            //logAltitude = GUILayout.HorizontalSlider(logAltitude, 0f, Mathf.Log(70000f), GUILayout.Width(200));
-            //selectedAltitude = Mathf.Exp(logAltitude);
-            //UpdateEnginePerformance();
-            RefreshEngineParts();
+            AtmosphereSetting();
+            //GUILayout.Label("Altitude (Kerbin): " + (selectedAltitude / 1000).ToString("F0") + " km");
+            //selectedAltitude = GUILayout.HorizontalSlider(selectedAltitude, 0f, 70000f, GUILayout.Width(200));
+            //RefreshEngineParts();
 
             GUILayout.Space(10); // Add spacing before the separation line
             GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(2)); // Separation line
@@ -221,6 +266,12 @@ namespace ShipEngineOptimization
             {
                 showDvLimit = true;
             }
+
+            //if (GUILayout.Button("Gross Comparison"))
+            //{
+            //    showGrossSort = true;
+            //}
+
             //if (GUILayout.Button("Engine Performance Chart") && selectedEngine.Count(eng => eng == "None") != selectedEngine.Count())
             //{
             //    //if (selectedEngine.Count(eng => eng == "None") == selectedEngine.Count())
@@ -285,6 +336,67 @@ namespace ShipEngineOptimization
             GUI.DragWindow();
         }
 
+        //private HashSet<string> selectedTopFuelTypes = new HashSet<string>();
+
+        //void DrawGrossSort(int windowID)
+        //{
+        //    GUILayout.Label("Filter by Fuel Types:");
+
+        //    foreach (var fuel in fuelTypes)
+        //    {
+        //        if (fuel == "None") continue;
+
+        //        bool wasSelected = selectedTopFuelTypes.Contains(fuel);
+        //        bool isSelectedNow = GUILayout.Toggle(wasSelected, fuel);
+
+        //        if (isSelectedNow && !wasSelected)
+        //            selectedTopFuelTypes.Add(fuel);
+        //        else if (!isSelectedNow && wasSelected)
+        //            selectedTopFuelTypes.Remove(fuel);
+        //    }
+
+        //    GUILayout.Label("Top 10 Engines by ISP:");
+
+        //    var topEngines = selectedTopFuelTypes
+        //        .Where(fuel => groupedEngines.ContainsKey(fuel))
+        //        .SelectMany(fuel => groupedEngines[fuel])
+        //        .Distinct()
+        //        .Where(engineName => engineData.ContainsKey(engineName))
+        //        .Select(engineName => new KeyValuePair<string, (float, float, float, float)>(engineName, engineData[engineName]))
+        //        .OrderByDescending(e => e.Value.Item3)
+        //        .Take(10);
+
+        //    foreach (var engine in topEngines)
+        //    {
+        //        GUILayout.Label($"{engine.Key}: {engine.Value.Item3:F2} s");
+        //    }
+
+        //    if (GUILayout.Button("Close"))
+        //    {
+        //        showTopIspEngines = false;
+        //    }
+
+        //    GUI.DragWindow();
+
+        //    //GUILayout.Label("Top 10 Engines by ISP:");
+        //    //var topEngines = engineData
+        //    //    .OrderByDescending(e => e.Value.isp)
+        //    //    .Take(10);
+
+        //    //foreach (var engine in topEngines)
+        //    //{
+        //    //    GUILayout.Label($"{engine.Key}: {engine.Value.isp:F2} s");
+        //    //}
+
+        //    //if (GUILayout.Button("Close"))
+        //    //{
+        //    //    showTopIspEngines = false;
+        //    //}
+
+        //    //GUI.DragWindow();
+        //}
+
+
         //void InitializeEngineParts()
         //{
         //    var availableParts = PartLoader.LoadedPartsList;
@@ -340,7 +452,7 @@ namespace ShipEngineOptimization
         //    }
         //}
 
-        void RefreshEngineParts()
+        static void RefreshEngineParts()
         {
             var availableParts = PartLoader.LoadedPartsList;
             //var enginePartList = new List<string> { "None" };
@@ -363,7 +475,8 @@ namespace ShipEngineOptimization
                     var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
                     if (engineModule != null)
                     {
-                        var propellantNames = string.Join(", ", engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge" && p != "IntakeAir"));
+                        //var propellantNames = string.Join(", ", engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge" && p != "IntakeAir"));
+                        var propellantNames = string.Join(", ", engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge"));
                         if (propellantNames.Contains("SolidFuel")) continue;
 
                         if (!groupedEngines.ContainsKey(propellantNames))
@@ -383,5 +496,18 @@ namespace ShipEngineOptimization
                 }
             }
         }
+
+        public static void AtmosphereSetting ()
+        {
+            GUILayout.Label("Altitude (Kerbin): " + (selectedAltitude / 1000).ToString("F0") + " km");
+            selectedAltitude = GUILayout.HorizontalSlider(selectedAltitude, 0f, 70000f, GUILayout.Width(200));
+            RefreshEngineParts();
+        }
+
+        public static void OpenIndiWindow ()
+        {
+            showIndiWindow = true;
+        }
+
     }
 }

@@ -46,6 +46,17 @@ namespace ShipEngineOptimization
             return b;
         }
 
+        public static int EngQtyUpper(float weightEng, float thrust, float isp, float wdr, float payload, float dv, float twr)
+        {
+            if (twr == 0) { return 1; }
+
+            float e = Mathf.Exp( dv / (sGravi*isp) );
+            float a = thrust / (sGravi * twr);
+            float b = (1 - wdr / e) / (1 - wdr);
+            float c = payload / (a * b - weightEng);
+            return Mathf.CeilToInt(c);
+        }
+
         public static List<float> TickGen(float min, float max)
         {
             float expo = Mathf.Floor(Mathf.Log10(max - min));

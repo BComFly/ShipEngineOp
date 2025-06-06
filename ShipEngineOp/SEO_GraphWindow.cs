@@ -1,12 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using RUI.Algorithms;
-using Smooth.Algebraics;
 using System.Linq;
 using UnityEngine;
-using VehiclePhysics;
-using static VehiclePhysics.VPAudio;
+using KSP.Localization;
 
 
 namespace ShipEngineOptimization
@@ -33,11 +29,12 @@ namespace ShipEngineOptimization
         // Var in Gross Comparison Window
         static bool filterT = false;
         static int qtyFilter = 9;
-        static bool showEngineNum;
-        static string seletedEngineSort;
+        static bool showAssignEngine;
+        static string selectedEngineInGross;
+
         //static int numEngMax0 = 3;
         //static int numEngMin0 = 1;
-        
+
         static float payload = 10f;
 
         public const int graph_width = 450;
@@ -52,12 +49,19 @@ namespace ShipEngineOptimization
         static Texture2D bgTexture = new Texture2D(1, 1);
 
         static int constrainOp = 0; // 0 = TWR as x axis; 1 = dv as x axis
-        static string[] constrainOpStr = { "Constrain dv", "Constrain TWR" };
+        static string[] constrainOpStr = { Localizer.Format("#LOC_SHIPENGOP_common_constrainDv"), Localizer.Format("#LOC_SHIPENGOP_common_constrainTwr") };
         //static bool constrainDv = true;
+
+        //public static bool autoUpdate = true;
 
         public static void DrawDvLimitWindow(int windowID)
         {
             if (GUI.Button(new Rect(SEO_Main.dvWndRect.size.x - 17, 2, 15, 15), ""))
+            {
+                SEO_Main.showDvLimit = false;
+            }
+
+            if (SEO_Main.selectedEngine.Count(eng => eng == SEO_Main.emptyStr) == SEO_Main.selectedEngine.Count())
             {
                 SEO_Main.showDvLimit = false;
             }
@@ -81,37 +85,37 @@ namespace ShipEngineOptimization
                 GUILayout.Box(SEO_Main.selectedEngine[idx], GUILayout.Width(200));
             }
 
-            //GUI.color = Color.green;
-            //GUILayout.Box(EngDrawMain.engineParts[EngDrawMain.selectedPartIndex0], GUILayout.Width(200));
-            //GUI.color = Color.blue;
-            //GUILayout.Box(EngDrawMain.engineParts[EngDrawMain.selectedPartIndex1], GUILayout.Width(200));
-            //GUI.color = Color.red;
-            //GUILayout.Box(EngDrawMain.engineParts[EngDrawMain.selectedPartIndex2], GUILayout.Width(200));
             GUI.color = Color.white;
 
             GUILayout.Space(10);
-            GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(2));
-            GUILayout.Space(10);
+            //GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(2));
+            //GUILayout.Space(10);
 
-            GUILayout.Label("Thrust to Weight Limit");
+            GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_dvLimitWindow_twrLimit"));
 
-            //float[] twrMaxList = new float[3];
-            //twrMaxList[0] = EngDrawMain.engineThrusts[EngDrawMain.selectedPartIndex0] / (EngDrawMain.engineWeights[EngDrawMain.selectedPartIndex0] * EngineFunctions.sGravi);
-            //twrMaxList[1] = EngDrawMain.engineThrusts[EngDrawMain.selectedPartIndex1] / (EngDrawMain.engineWeights[EngDrawMain.selectedPartIndex1] * EngineFunctions.sGravi);
-            //twrMaxList[2] = EngDrawMain.engineThrusts[EngDrawMain.selectedPartIndex2] / (EngDrawMain.engineWeights[EngDrawMain.selectedPartIndex2] * EngineFunctions.sGravi);
             UpdateTwrRange();
             GUILayout.BeginHorizontal();
             xMax_dvGraph = GUILayout.HorizontalSlider(xMax_dvGraph, 0, globalTwrRange[1]);
             GUILayout.Label(xMax_dvGraph.ToString("F2"));
             GUILayout.EndHorizontal();
 
-            //twrMaxInput = GUILayout.TextField(twrMaxInput, 3, GUILayout.Width(30));
-
-            //if (float.TryParse(twrMaxInput, out float parsedtwrMax))
+            //GUILayout.Space(30);
+            //autoUpdate = GUILayout.Toggle(autoUpdate, Localizer.Format("#LOC_SHIPENGOP_common_autoUpdate"));
+            //if (autoUpdate)
             //{
-            //    //twrMaxValue = parsedtwrMax;
-            //    xMax_dvGraph = parsedtwrMax;
+            //    UpdateDvGraphs();
             //}
+            //else
+            //{
+            //    if (GUILayout.Button(Localizer.Format("#LOC_SHIPENGOP_common_manualUpdate")))
+            //    { UpdateDvGraphs(); }
+            //}
+            //if (!autoUpdate)
+            //{
+            //    if (GUILayout.Button(Localizer.Format("#LOC_SHIPENGOP_common_manualUpdate")))
+            //    { UpdateDvGraphs(true); }
+            //}
+
 
             GUILayout.EndVertical();
 
@@ -119,7 +123,6 @@ namespace ShipEngineOptimization
 
             GUI.DragWindow();
         }
-
 
 
         public static void UpdateDvGraphs()
@@ -224,6 +227,8 @@ namespace ShipEngineOptimization
                 GUI.Label(new Rect(graphCorner.x + graph_left + 5, yLabel, 100, 20), yValue.ToString("F0"));
             }
 
+            //if (updateGraph) dvGraph_tex.Apply();
+
             dvGraph_tex.Apply();
         }
 
@@ -237,6 +242,12 @@ namespace ShipEngineOptimization
                 SEO_Main.showNumEng = false;
             }
 
+            if (SEO_Main.selectedEngine.Count(eng => eng == SEO_Main.emptyStr) == SEO_Main.selectedEngine.Count() || twrTarget <= 0)
+            {
+                SEO_Main.showNumEng = false;
+                return;
+            }
+
             GUILayout.BeginHorizontal();
             // column 1
             GUILayout.BeginVertical(GUILayout.Width(graph_width + 15));
@@ -244,8 +255,6 @@ namespace ShipEngineOptimization
             GUILayout.Label(numGraph_tex);
 
             UpdateNumEngGraphs();
-            //GUILayout.Label("Debug twr: " + string.Join(", ", twrDebug));
-            //GUILayout.Label("Debug weight: " + string.Join(", ", WeightDebug));
 
             GUILayout.EndVertical();
 
@@ -258,26 +267,14 @@ namespace ShipEngineOptimization
                 GUILayout.Box(SEO_Main.selectedEngine[idx], GUILayout.Width(200));
                 GUI.color = Color.white;
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Qty Min: " + numEngMin[idx].ToString());
+                GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_engQtyWindow_qtyMin") + numEngMin[idx].ToString());
                 numEngMin[idx] = Mathf.RoundToInt(GUILayout.HorizontalSlider(numEngMin[idx], 1, numEngMax[idx], GUILayout.Width(135)));
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Qty Max: " + numEngMax[idx].ToString());
+                GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_engQtyWindow_qtyMax") + numEngMax[idx].ToString());
                 numEngMax[idx] = Mathf.RoundToInt(GUILayout.HorizontalSlider(numEngMax[idx], numEngMin[idx], 21, GUILayout.Width(135)));
                 GUILayout.EndHorizontal();
             }
-
-            //GUI.color = Color.green;
-            //GUILayout.Box(EngDrawMain.engineParts[EngDrawMain.selectedPartIndex0], GUILayout.Width(200));
-            //GUI.color = Color.white;
-            //numEngMin0 = Mathf.RoundToInt(GUILayout.HorizontalSlider(numEngMin0, 1, numEngMax0));
-            //numEngMax0 = Mathf.RoundToInt(GUILayout.HorizontalSlider(numEngMax0, numEngMin0, 12));
-
-            //GUI.color = Color.blue;
-            //GUILayout.Box(EngDrawMain.engineParts[EngDrawMain.selectedPartIndex1], GUILayout.Width(200));
-            //GUI.color = Color.red;
-            //GUILayout.Box(EngDrawMain.engineParts[EngDrawMain.selectedPartIndex2], GUILayout.Width(200));
-            //GUI.color = Color.white;
 
             GUILayout.Space(10);
             GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(2));
@@ -285,38 +282,20 @@ namespace ShipEngineOptimization
 
             PayloadInput();
 
-            //GUILayout.Label("Payload Mass (tons):");
-            //string vesselMassStr = GUILayout.TextField(payload.ToString("F2"), 6); // Input box
-            //float.TryParse(vesselMassStr, out payload);
-
-            //if (GUILayout.Button("Set to Current Vessel"))
-            //{
-            //    if (EditorLogic.fetch != null && EditorLogic.fetch.ship != null)
-            //    {
-            //        payload = EditorLogic.fetch.ship.GetTotalMass();
-            //    }
-            //}
-
             SelectConstrain();
-            //int xSelection = GUILayout.SelectionGrid(xOption, xOptionStr, 2);
-            //if (xSelection != xOption)
-            //{
-            //    xOption = xSelection;
-            //}
 
             if (constrainOp == 0)
             {
                 UpdateDvRange();
-                GUILayout.Label("Target dV:" + dvTarget.ToString("F0"));
+                GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_engQtyWindow_targetDv") + dvTarget.ToString("F0") + " m/s");
                 dvTarget = GUILayout.HorizontalSlider(dvTarget, 0, globalDvRange[0]);
             }
             else if (constrainOp == 1)
             {
                 UpdateTwrRange();
-                GUILayout.Label("Target TWR: " + twrTarget.ToString("F2"));
+                GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_engQtyWindow_targetTwr") + twrTarget.ToString("F2"));
                 twrTarget = GUILayout.HorizontalSlider(twrTarget, 0, globalTwrRange[0]);
             }
-
 
             GUILayout.EndVertical();
 
@@ -333,16 +312,6 @@ namespace ShipEngineOptimization
             init_textures();
             init_axes();
 
-            //engineIndexes = new List<int> { EngDrawMain.selectedPartIndex0, EngDrawMain.selectedPartIndex1, EngDrawMain.selectedPartIndex2 };
-
-            //int[] numEngNet0 = new int[numEngMax0 - numEngMin0 + 1];
-            //float[] totalWeight0 = new float[numEngNet0.Length];
-            //float[] totalWeight1 = new float[numEngNet0.Length];
-            //float[] totalWeight2 = new float[numEngNet0.Length];
-            //float[] xNet0 = new float[numEngNet0.Length];
-            //float[] xNet1 = new float[numEngNet0.Length];
-            //float[] xNet2 = new float[numEngNet0.Length];
-
             List<int[]> numEngNets = new List<int[]>();
             List<float[]> allPtsX = new List<float[]>();
             List<float[]> allPtsTotalWeight = new List<float[]>();
@@ -351,9 +320,13 @@ namespace ShipEngineOptimization
             for (int idx = 0; idx < SEO_Main.selectedEngine.Length; idx++)
             {
                 var data = SEO_Main.engineData[SEO_Main.selectedEngine[idx]];
+                float wdr = (SEO_Main.customWdr.ContainsKey(SEO_Main.selectedEngine[idx]) ? SEO_Main.customWdr[SEO_Main.selectedEngine[idx]].toggle : false) ? SEO_Main.customWdr[SEO_Main.selectedEngine[idx]].customValue : data.wdr;
+                float realWeight = (SEO_Main.additionalWeight.ContainsKey(SEO_Main.selectedEngine[idx]) ? SEO_Main.additionalWeight[SEO_Main.selectedEngine[idx]].toggle : false) ? SEO_Main.additionalWeight[SEO_Main.selectedEngine[idx]].addiWeight + data.weight : data.weight;
+
                 numEngNets.Add(new int[numEngMax[idx] - numEngMin[idx] + 1]);
                 allPtsTotalWeight.Add(new float[numEngMax[idx] - numEngMin[idx] + 1]);
                 allPtsX.Add(new float[numEngMax[idx] - numEngMin[idx] + 1]);
+
                 for (int i = 0; i < numEngNets[idx].Length; i++)
                 {
                     numEngNets[idx][i] = i + numEngMin[idx];
@@ -361,19 +334,23 @@ namespace ShipEngineOptimization
                     switch (constrainOp)
                     {
                         case 0: // set dv
-                            if (SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]] != 1.0f)
+                            //if (SEO_Main.customWdr[SEO_Main.selectedEngine[idx]].customValue != 1.0f)
+                            if (wdr != 1.0f)
                             {
-                                allPtsTotalWeight[idx][i] = SEO_Functions.TotalWeightFromDv(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]], dvTarget, payload, numEngNets[idx][i]);
-                                allPtsX[idx][i] = numEngNets[idx][i] * data.thrust / (allPtsTotalWeight[idx][i] * SEO_Functions.sGravi);
+                                //allPtsTotalWeight[idx][i] = SEO_Functions.TotalWeightFromDv(data.weight, data.thrust, data.isp, SEO_Main.customWdr[SEO_Main.selectedEngine[idx]], dvTarget, payload, numEngNets[idx][i]);
+                                allPtsTotalWeight[idx][i] = SEO_Functions.TotalWeightFromDv(realWeight, data.thrust, data.isp, wdr, dvTarget, payload, numEngNets[idx][i]);
+                                allPtsX[idx][i] = numEngNets[idx][i] * data.thrust / (allPtsTotalWeight[idx][i] * SEO_Functions.surfaceGravity);
                             }
                             break;
                         case 1: // set TWR
-                            if (SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]] != 1.0f && data.thrust / (SEO_Functions.sGravi * data.weight) > twrTarget)
+                                //if (SEO_Main.customWdr[SEO_Main.selectedEngine[idx]] != 1.0f && data.thrust / (SEO_Functions.sGravi * data.weight) > twrTarget)
+                            if (wdr != 1.0f && data.thrust / (SEO_Functions.surfaceGravity * realWeight) > twrTarget)
                             {
                                 //if (EngDrawMain.engineThrusts[engineIndexes[eng]] / (EngineFunctions.sGravi * EngDrawMain.engineWeights[engineIndexes[eng]]) <= setTWR)
                                 //    { continue; }
-                                allPtsTotalWeight[idx][i] = (numEngNets[idx][i] * data.thrust) / (SEO_Functions.sGravi * twrTarget);
-                                allPtsX[idx][i] = SEO_Functions.DvFromTwr(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[SEO_Main.selectedEngine[idx]], allPtsTotalWeight[idx][i], payload, numEngNets[idx][i]);
+                                allPtsTotalWeight[idx][i] = (numEngNets[idx][i] * data.thrust) / (SEO_Functions.surfaceGravity * twrTarget);
+                                allPtsX[idx][i] = SEO_Functions.DvFromTwr(realWeight, data.thrust, data.isp, wdr, allPtsTotalWeight[idx][i], payload, numEngNets[idx][i]);
+                                //allPtsX[idx][i] = SEO_Functions.DvFromTwr(data.weight, data.thrust, data.isp, SEO_Main.customWdr[SEO_Main.selectedEngine[idx]], allPtsTotalWeight[idx][i], payload, numEngNets[idx][i]);
                             }
                             break;
                     }
@@ -430,7 +407,7 @@ namespace ShipEngineOptimization
                 DrawLine(numGraph_tex, xPos, graph_bottom, xPos, graph_bottom + 4, Color.white);
                 DrawLine(numGraph_tex, xPos, graph_height - graph_top - 1, xPos, graph_height - graph_top - 5, Color.white);
                 //GUI.Label(new Rect(graphCorner.x + xPos, graphCorner.y + graph_height - graph_bottom - 2, 40, 20), xTick.ToString());
-                GUI.Label(new Rect(graphCorner.x + xPos - 14, graphCorner.y + graph_height - graph_bottom - 2, 31, 20), xTick.ToString(), centeredTextStyle);
+                GUI.Label(new Rect(graphCorner.x + xPos - 14, graphCorner.y + graph_height - graph_bottom - 2, 31, 20), xTick.ToString(constrainOp == 0 ? "G2" : "F0"), centeredTextStyle);
             }
             List<float> yTicks = SEO_Functions.TickGen(trueYRange[0], trueYRange[1]);
             foreach (float yTick in yTicks)
@@ -438,7 +415,7 @@ namespace ShipEngineOptimization
                 int yPos = Mathf.RoundToInt((yTick - trueYRange[0]) / (trueYRange[1] - trueYRange[0]) * (graph_height - graph_top - graph_bottom - 1) + graph_bottom);
                 DrawLine(numGraph_tex, graph_width - graph_right - 1, yPos, graph_width - graph_right - 5, yPos, Color.white);
                 DrawLine(numGraph_tex, graph_left, yPos, graph_left + 4, yPos, Color.white);
-                GUI.Label(new Rect(graphCorner.x + graph_width - graph_right + 3, graphCorner.y + graph_height - 13 - yPos, 40, 20), yTick.ToString());
+                GUI.Label(new Rect(graphCorner.x + graph_width - graph_right + 3, graphCorner.y + graph_height - 13 - yPos, 40, 20), yTick.ToString("G3"));
             }
 
             // Labels
@@ -504,32 +481,47 @@ namespace ShipEngineOptimization
                 int yPos = Mathf.RoundToInt(graph_bottom + (closestValues.Value.y - trueYRange[0]) / (trueYRange[1] - trueYRange[0]) * (graph_height - graph_bottom - graph_top - 1));
                 DrawDot(numGraph_tex, xPos, yPos, 20, Color.white);
 
-                
-                if (mousePos.y <= graphCorner.y + (graph_height - graph_bottom - graph_top) / 2 + graph_top - 1)
-                {
-                    switch (constrainOp)
-                    {
-                        default:
-                            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y + 15, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + "TWR: " + closestValues.Value.x.ToString("F2") + "\n" + "Total Weight: " + closestValues.Value.y.ToString("F1") + " t" + "\n" + "Qty: " + closestNum.ToString());
-                            break;
-                        case 1:
-                            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y + 15, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + "dV: " + closestValues.Value.x.ToString("F0") + " m/s" + "\n" + "Total Weight: " + closestValues.Value.y.ToString("F1") + " t" + "\n" + "Qty: " + closestNum.ToString());
-                            break;
-                    }
-                }
-                else
-                {
-                    switch (constrainOp)
-                    {
-                        default:
-                            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y - 80, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + "TWR: " + closestValues.Value.x.ToString("F2") + "\n" + "Total Weight: " + closestValues.Value.y.ToString("F1") + " t" + "\n" + "Qty: " + closestNum.ToString());
-                            break;
-                        case 1:
-                            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y - 80, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + "dV: " + closestValues.Value.x.ToString("F0") + " m/s" + "\n" + "Total Weight: " + closestValues.Value.y.ToString("F1") + " t" + "\n" + "Qty: " + closestNum.ToString());
-                            break;
-                    }
-                    //GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y - 80, 140, 70), EngDrawMain.selectedEngine[closestEng] + "\n" + "TWR: " + closestValues.Value.x.ToString("F2") + "\n" + "Weight: " + closestValues.Value.y.ToString("F1") + " t" + "\n" + "Qty: " + closestNum.ToString());
-                }
+                float midPointCheck = graphCorner.y + (graph_height - graph_bottom - graph_top) / 2 + graph_top - 1;
+                GUI.Box(new Rect(closestPoint.Value.x - 70,
+                        mousePos.y <= midPointCheck ? (closestPoint.Value.y + 15) : (closestPoint.Value.y - 80), 140, 70),
+                        SEO_Main.selectedEngine[closestEng]
+                        + "\n"
+                        + (constrainOp == 0
+                        ? (Localizer.Format("#LOC_SHIPENGOP_shipSpecs_twr") + closestValues.Value.x.ToString("F2"))
+                        : (Localizer.Format("#LOC_SHIPENGOP_shipSpecs_dv") + closestValues.Value.x.ToString("F0") + " m/s"))
+                        + "\n"
+                        + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_totalMass")
+                        + closestValues.Value.y.ToString("G3")
+                        + " t"
+                        + "\n"
+                        + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_engineQty")
+                        + closestNum.ToString());
+
+                //if (mousePos.y <= graphCorner.y + (graph_height - graph_bottom - graph_top) / 2 + graph_top - 1)
+                //{
+                //    switch (constrainOp)
+                //    {
+                //        default:
+                //            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y + 15, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_twr") + closestValues.Value.x.ToString("F2") + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_totalMass") + closestValues.Value.y.ToString("G3") + " t" + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_engineQty") + closestNum.ToString());
+                //            break;
+                //        case 1:
+                //            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y + 15, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_dv") + closestValues.Value.x.ToString("F0") + " m/s" + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_totalMass") + closestValues.Value.y.ToString("G3") + " t" + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_engineQty") + closestNum.ToString());
+                //            break;
+                //    }
+                //}
+                //else
+                //{
+                //    switch (constrainOp)
+                //    {
+                //        default:
+                //            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y - 80, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_twr") + closestValues.Value.x.ToString("F2") + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_totalMass") + closestValues.Value.y.ToString("G3") + " t" + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_engineQty") + closestNum.ToString());
+                //            break;
+                //        case 1:
+                //            GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y - 80, 140, 70), SEO_Main.selectedEngine[closestEng] + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_dv") + closestValues.Value.x.ToString("F0") + " m/s" + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_totalMass") + closestValues.Value.y.ToString("G3") + " t" + "\n" + Localizer.Format("#LOC_SHIPENGOP_shipSpecs_engineQty") + closestNum.ToString());
+                //            break;
+                //    }
+                //    //GUI.Box(new Rect(closestPoint.Value.x - 70, closestPoint.Value.y - 80, 140, 70), EngDrawMain.selectedEngine[closestEng] + "\n" + "TWR: " + closestValues.Value.x.ToString("F2") + "\n" + "Weight: " + closestValues.Value.y.ToString("F1") + " t" + "\n" + "Qty: " + closestNum.ToString());
+                //}
 
             }
 
@@ -547,7 +539,7 @@ namespace ShipEngineOptimization
 
         public static void DrawGrossSort(int windowID)
         {
-            if (GUI.Button(new Rect(SEO_Main.GrossSortWndRect.size.x - 17, 2, 15, 15), ""))
+            if (GUI.Button(new Rect(SEO_Main.grossSortWndRect.size.x - 17, 2, 15, 15), ""))
             {
                 SEO_Main.showGrossSort = false;
             }
@@ -555,7 +547,7 @@ namespace ShipEngineOptimization
             GUILayout.BeginHorizontal();
 
             GUILayout.BeginVertical();
-            GUILayout.Label("Filter by Fuel Types:");
+            GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_fuelFilter"));
 
             scrollPosition_fuel = GUILayout.BeginScrollView(scrollPosition_fuel, GUILayout.Width(300), GUILayout.Height(100));
             foreach (var fuel in SEO_Main.fuelTypes)
@@ -563,7 +555,9 @@ namespace ShipEngineOptimization
                 if (fuel == "None") continue;
 
                 bool wasSelected = selectedTopFuelTypes.Contains(fuel);
-                bool isSelectedNow = GUILayout.Toggle(wasSelected, fuel);
+                //bool isSelectedNow = GUILayout.Toggle(wasSelected, fuel);
+                string displayName = SEO_Main.fuelDisplayNames.ContainsKey(fuel) ? SEO_Main.fuelDisplayNames[fuel] : fuel;
+                bool isSelectedNow = GUILayout.Toggle(wasSelected, displayName);
 
                 if (isSelectedNow && !wasSelected)
                     selectedTopFuelTypes.Add(fuel);
@@ -573,10 +567,8 @@ namespace ShipEngineOptimization
             GUILayout.EndScrollView();
 
             GUILayout.Space(30);
-            //GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(2));
-            //GUILayout.Space(10);
 
-            GUILayout.Label("Recommanded Engine Configurations:");
+            GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_configTitle"));
 
             var topEngines = selectedTopFuelTypes
                 .Where(fuel => SEO_Main.groupedEngines.ContainsKey(fuel))
@@ -586,61 +578,36 @@ namespace ShipEngineOptimization
                 .Select(engineName =>
                 {
                     var data = SEO_Main.engineData[engineName];
-                    float customWdr = SEO_Main.currentWdr.ContainsKey(engineName) ? SEO_Main.currentWdr[engineName] : data.wdr;
+                    float wdr = (SEO_Main.customWdr.ContainsKey(engineName) ? SEO_Main.customWdr[engineName].toggle : false) ? SEO_Main.customWdr[engineName].customValue : data.wdr;
+                    float realWeight = (SEO_Main.additionalWeight.ContainsKey(engineName) ? SEO_Main.additionalWeight[engineName].toggle : false) ? SEO_Main.additionalWeight[engineName].addiWeight + data.weight : data.weight;
+                    float weightTotal = GetWeightTotal(realWeight, data.thrust, data.isp, wdr, payload, dvTarget, twrTarget);
+                    float qtyEng = SEO_Functions.EngQtyUpper(realWeight, data.thrust, data.isp, wdr, payload, dvTarget, twrTarget);
                     return new
                     {
                         Name = engineName,
-                        data.weight,
+                        //data.weight,
+                        weight = realWeight,
                         data.thrust,
                         data.isp,
-                        wdr = customWdr,
-                        weightTotal = GetWeightTotal(data.weight, data.thrust, data.isp, customWdr, payload, dvTarget, twrTarget),
-                        qtyEng = SEO_Functions.EngQtyUpper(data.weight, data.thrust, data.isp, customWdr, payload, dvTarget, twrTarget)
+                        wdr,
+                        weightTotal,
+                        //weightTotal = GetWeightTotal(realWeight, data.thrust, data.isp, wdr, payload, dvTarget, twrTarget),
+                        fuelMass = (weightTotal - qtyEng * realWeight - payload) * (1 - 1/wdr),
+                        qtyEng
+                        //qtyEng = SEO_Functions.EngQtyUpper(realWeight, data.thrust, data.isp, wdr, payload, dvTarget, twrTarget)
+                        //weightTotal = GetWeightTotal(data.weight, data.thrust, data.isp, customWdr, payload, dvTarget, twrTarget),
+                        //qtyEng = SEO_Functions.EngQtyUpper(data.weight, data.thrust, data.isp, customWdr, payload, dvTarget, twrTarget)
                     };
                 })
                 .Where(e => e.weightTotal > 0)
                 .Where(e => !filterT || e.qtyEng <= qtyFilter)
-                .OrderBy(e => e.weightTotal)
+                .OrderBy(e => constrainOp == 0 ? e.weightTotal : e.fuelMass)
+                //.OrderBy(e => e.weightTotal)
                 .Take(10);
 
-            //var topEngines = selectedTopFuelTypes
-            //    .Where(fuel => SEO_Main.groupedEngines.ContainsKey(fuel))
-            //    .SelectMany(fuel => SEO_Main.groupedEngines[fuel])
-            //    .Distinct()
-            //    .Where(engineName => SEO_Main.engineData.ContainsKey(engineName))
-            //    .Select(engineName =>
-            //    {
-            //        var data = SEO_Main.engineData[engineName];
-            //        float customWdr = SEO_Main.currentWdr.ContainsKey(engineName) ? SEO_Main.currentWdr[engineName] : data.wdr;
-            //        float qtyEng = SEO_Functions.EngQtyUpper(data.weight, data.thrust, data.isp, customWdr, payload, dvTarget, twrTarget);
-            //        float weightTotal = GetWeightTotal(data.weight, data.thrust, data.isp, customWdr, payload, dvTarget, twrTarget);
-            //        float dv = SEO_Functions.sGravi * data.isp * Mathf.Log(data.wdr / (1f + (((payload + data.weight * qtyEng) / weightTotal) * (data.wdr - 1))));
-            //        return new
-            //        {
-            //            Name = engineName,
-            //            data.weight,
-            //            data.thrust,
-            //            data.isp,
-            //            wdr = customWdr,
-            //            weightTotal,
-            //            dv,
-            //            qtyEng
-            //        };
-            //    })
-            //    .Where(e => e.weightTotal > 0)
-            //    .Where(e => !filterT || e.qtyEng <= qtyFilter);
-
-            //switch (constrainOp)
-            //{
-            //    default: // constrain dv
-            //        topEngines = topEngines.OrderBy(e => e.weightTotal).Take(10);
-            //        break;
-            //    case 1: // constrain TWR
-            //        topEngines = topEngines.OrderByDescending(e => e.dv).Take(10);
-            //        break;
-            //}
-
             scrollPosition_eng = GUILayout.BeginScrollView(scrollPosition_eng, GUILayout.Width(300), GUILayout.Height(300));
+
+            //string seletedEngineSort;
 
             foreach (var engine in topEngines)
             {
@@ -650,24 +617,30 @@ namespace ShipEngineOptimization
                 //GUILayout.Box(engText);
                 if (GUILayout.Button(engine.Name))
                 {
-                    seletedEngineSort = engine.Name;
-                    showEngineNum = true;
+                    selectedEngineInGross = engine.Name;
+                    showAssignEngine = true;
                 }
+
                 GUILayout.BeginHorizontal();
-                GUILayout.Box("Weight: " + engine.weightTotal.ToString("F2") + " t");
-                GUILayout.Box("Qty: " + engine.qtyEng.ToString());
+                GUILayout.Box(Localizer.Format("#LOC_SHIPENGOP_shipSpecs_totalMass") + engine.weightTotal.ToString("G3") + " t");
+                //float fuelMass = (engine.weightTotal - engine.qtyEng * engine.weight - payload) * (1 - 1/engine.wdr);
+                GUILayout.Box(Localizer.Format("#LOC_SHIPENGOP_shipSpecs_fuelMass") + engine.fuelMass.ToString("G3") + " t");
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Box(Localizer.Format("#LOC_SHIPENGOP_shipSpecs_engineQty") + engine.qtyEng.ToString());
                 switch (constrainOp)
                 {
                     default:
-                        GUILayout.Box("TWR: " + (engine.thrust * engine.qtyEng / (engine.weightTotal * SEO_Functions.sGravi)).ToString("F2"));
+                        GUILayout.Box(Localizer.Format("#LOC_SHIPENGOP_shipSpecs_twr") + (engine.thrust * engine.qtyEng / (engine.weightTotal * SEO_Functions.surfaceGravity)).ToString("F2"));
                         break;
                     case 1:
-                        float dv = SEO_Functions.sGravi * engine.isp * Mathf.Log(engine.wdr / (1f + ( ( (payload + engine.weight * engine.qtyEng) / engine.weightTotal ) * (engine.wdr - 1) ) ) );
-                        GUILayout.Box("dv: " + dv.ToString("F0") + " m/s");
+                        float dv = SEO_Functions.standardGravity * engine.isp * Mathf.Log(engine.wdr / (1f + (((payload + engine.weight * engine.qtyEng) / engine.weightTotal) * (engine.wdr - 1))));
+                        GUILayout.Box(Localizer.Format("#LOC_SHIPENGOP_shipSpecs_dv") + dv.ToString("F0") + " m/s");
                         break;
                 }
-                
                 GUILayout.EndHorizontal();
+
                 GUILayout.Space(8);
             }
 
@@ -679,26 +652,33 @@ namespace ShipEngineOptimization
             //GUILayout.Space(10);
 
             GUILayout.BeginVertical();
+
             PayloadInput();
-            //GUILayout.Label("Payload Mass (tons):");
-            //GUILayout.BeginHorizontal();
-            //string vesselMassStr = GUILayout.TextField(payload.ToString("F2"), 6, GUILayout.Width(60)); // Input box
-            //float.TryParse(vesselMassStr, out payload);
 
-            //if (GUILayout.Button("Load from Editor"))
+            //GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_desiredDv"));
+            GUILayout.Label(constrainOp == 0 ? Localizer.Format("#LOC_SHIPENGOP_grossWindow_desiredDv") : Localizer.Format("#LOC_SHIPENGOP_grossWindow_minDv"));
+            //if (constrainOp == 0)
             //{
-            //    if (EditorLogic.fetch != null && EditorLogic.fetch.ship != null)
-            //    {
-            //        payload = EditorLogic.fetch.ship.GetTotalMass();
-            //    }
+            //    GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_desiredDv"));
             //}
-            //GUILayout.EndHorizontal();
+            //else if (constrainOp == 1)
+            //{
+            //    GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_minDv"));
+            //}
 
-            GUILayout.Label("Desired dv (m/s):");
             string dvStr = GUILayout.TextField(dvTarget.ToString("F0"), 8, GUILayout.Width(60)); // Input box
             float.TryParse(dvStr, out dvTarget);
 
-            GUILayout.Label("Desired TWR:");
+            //GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_desiredTwr"));
+            GUILayout.Label(constrainOp == 0 ? Localizer.Format("#LOC_SHIPENGOP_grossWindow_minTwr") : Localizer.Format("#LOC_SHIPENGOP_grossWindow_desiredTwr"));
+            //if (constrainOp == 0)
+            //{
+            //    GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_minTwr"));
+            //}
+            //else if (constrainOp == 1)
+            //{
+            //    GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_desiredTwr"));
+            //}
             string twrStr = GUILayout.TextField(twrTarget.ToString("F2"), 5, GUILayout.Width(40)); // Input box
             float.TryParse(twrStr, out twrTarget);
 
@@ -707,10 +687,11 @@ namespace ShipEngineOptimization
 
             SEO_Main.AtmosphereSetting();
 
-            filterT = GUILayout.Toggle(filterT, "Quantity Filter");
+            SEO_Main.ToggleCareer();
+
+            filterT = GUILayout.Toggle(filterT, Localizer.Format("#LOC_SHIPENGOP_grossWindow_QtyFilter"));
             if (filterT)
             {
-                //GUILayout.Label("Quantity Filter");
                 GUILayout.BeginHorizontal(GUILayout.Width(150));
                 qtyFilter = Mathf.RoundToInt(GUILayout.HorizontalSlider(qtyFilter, 1, 21, GUILayout.Width(100)));
                 GUILayout.Label(qtyFilter.ToString());
@@ -718,22 +699,22 @@ namespace ShipEngineOptimization
                 //topEngines = topEngines.Where(e => e.qtyEng <= qtyFilter);
             }
 
-            if (showEngineNum)
+            if (showAssignEngine)
             {
                 GUILayout.Space(10);
-                GUILayout.Label("Setting for individual comparison");
-                GUILayout.Box(seletedEngineSort.ToString(), GUILayout.Width(200));
+                GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_grossWindow_setIndiComparison"));
+                GUILayout.Box(selectedEngineInGross, GUILayout.Width(200));
                 for (int idx = 0; idx < SEO_Main.selectedEngine.Length; idx++)
                 {
-                    if (GUILayout.Button("Engine " + (idx + 1).ToString(), GUILayout.Width(100)))
+                    if (GUILayout.Button(Localizer.Format("#LOC_SHIPENGOP_indiWindow_engine") + (idx + 1).ToString(), GUILayout.Width(100)))
                     {
-                        SEO_Main.selectedEngine[idx] = seletedEngineSort;
-                        showEngineNum = false;
+                        SEO_Main.selectedEngine[idx] = selectedEngineInGross;
+                        showAssignEngine = false;
                     }
                 }
-                if (GUILayout.Button("None", GUILayout.Width(100)))
+                if (GUILayout.Button(Localizer.Format("#LOC_SHIPENGOP_grossWindow_setIndiCancel"), GUILayout.Width(100)))
                 {
-                    showEngineNum = false;
+                    showAssignEngine = false;
                     //SEO_Main.OpenIndiWindow();
                 }
             }
@@ -742,17 +723,12 @@ namespace ShipEngineOptimization
 
             GUILayout.EndHorizontal();
 
-            //if (GUILayout.Button("Close"))
-            //{
-            //    SEO_Main.showGrossSort = false;
-            //}
-
             GUI.DragWindow();
         }
 
         static float GetWeightTotal (float weightEng, float thrust, float isp, float wdr, float payload, float dv, float twr)
         {
-            if (twr > thrust / (weightEng * SEO_Functions.sGravi) || dv >= SEO_Functions.DvLimit(weightEng, thrust, isp, wdr, twr))
+            if (twr > thrust / (weightEng * SEO_Functions.surfaceGravity) || dv >= SEO_Functions.DvLimit(weightEng, thrust, isp, wdr, twr))
             {  return 0; }
 
             int qtyEng = SEO_Functions.EngQtyUpper(weightEng, thrust, isp, wdr, payload, dv, twr);
@@ -761,11 +737,11 @@ namespace ShipEngineOptimization
             switch (constrainOp)
             {
                 default: // constrain dv
-                    float e = Mathf.Exp(dv / (SEO_Functions.sGravi * isp));
+                    float e = Mathf.Exp(dv / (SEO_Functions.standardGravity * isp));
                     float weightTotal = (payload + qtyEng * weightEng) * (1 + (1 - e) / (e / wdr - 1));
                     return weightTotal;
                 case 1: // constrain TWR
-                    return thrust * qtyEng / (twr * SEO_Functions.sGravi);
+                    return thrust * qtyEng / (twr * SEO_Functions.surfaceGravity);
             }
             //float e = Mathf.Exp( dv / (SEO_Functions.sGravi * isp) );
             //float weightTotal = (payload + qtyEng*weightEng) * (1 + (1 - e) / (e/wdr - 1) );
@@ -896,9 +872,12 @@ namespace ShipEngineOptimization
             foreach (string engine in SEO_Main.selectedEngine)
             {
                 var data = SEO_Main.engineData[engine];
+                float realWeight = (SEO_Main.additionalWeight.ContainsKey(engine) ? SEO_Main.additionalWeight[engine].toggle : false) ? SEO_Main.additionalWeight[engine].addiWeight + data.weight : data.weight;
+
                 if (data.thrust == 0.0f)
                     { continue; }
-                twrMaxList.Add(data.thrust / (data.weight * SEO_Functions.sGravi));
+                //twrMaxList.Add(data.thrust / (data.weight * SEO_Functions.sGravi));
+                twrMaxList.Add(data.thrust / (realWeight * SEO_Functions.surfaceGravity));
             }
             globalTwrRange[0] = twrMaxList.Where(x => x > 0.0f).DefaultIfEmpty().Min();
             globalTwrRange[1] = twrMaxList.Where(x => x > 0.0f).DefaultIfEmpty().Max();
@@ -910,9 +889,12 @@ namespace ShipEngineOptimization
             foreach (string engine in SEO_Main.selectedEngine)
             {
                 var data = SEO_Main.engineData[engine];
-                if (SEO_Main.currentWdr[engine] == 1.0f)
+                float wdr = (SEO_Main.customWdr.ContainsKey(engine) ? SEO_Main.customWdr[engine].toggle : false) ? SEO_Main.customWdr[engine].customValue : data.wdr;
+
+                //if (SEO_Main.customWdr[engine] == 1.0f)
+                if (wdr == 1.0f)
                 { continue; }
-                dvMax.Add(data.isp * SEO_Functions.sGravi * Mathf.Log(SEO_Main.currentWdr[engine]));
+                dvMax.Add(data.isp * SEO_Functions.standardGravity * Mathf.Log(wdr));
             }
             globalDvRange[0] = dvMax.Where(x => x > 0.0f).DefaultIfEmpty().Min();
             globalDvRange[1] = dvMax.Where(x => x > 0.0f).DefaultIfEmpty().Max();
@@ -922,11 +904,14 @@ namespace ShipEngineOptimization
         static float[] CalDvLimit(float[] x, string engine)
         {
             var data = SEO_Main.engineData[engine];
+            float wdr = (SEO_Main.customWdr.ContainsKey(engine) ? SEO_Main.customWdr[engine].toggle : false) ? SEO_Main.customWdr[engine].customValue : data.wdr;
+            float realWeight = (SEO_Main.additionalWeight.ContainsKey(engine) ? SEO_Main.additionalWeight[engine].toggle : false) ? SEO_Main.additionalWeight[engine].addiWeight + data.weight : data.weight;
+
             float[] y = new float[num_pts + 1];
             for (int i = 0; i <= num_pts; i++)
             {
-                y[i] = SEO_Functions.DvLimit(data.weight, data.thrust, data.isp, SEO_Main.currentWdr[engine], x[i]);
-
+                //y[i] = SEO_Functions.DvLimit(data.weight, data.thrust, data.isp, wdr, x[i]);
+                y[i] = SEO_Functions.DvLimit(realWeight, data.thrust, data.isp, wdr, x[i]);
             }
             return y;
         }
@@ -1046,12 +1031,12 @@ namespace ShipEngineOptimization
 
         static void PayloadInput ()
         {
-            GUILayout.Label("Payload Mass (tons):");
+            GUILayout.Label(Localizer.Format("#LOC_SHIPENGOP_common_payloadMass"));
             GUILayout.BeginHorizontal();
             string vesselMassStr = GUILayout.TextField(payload.ToString("F2"), 6, GUILayout.Width(60)); // Input box
             float.TryParse(vesselMassStr, out payload);
 
-            if (GUILayout.Button("Load from Editor"))
+            if (GUILayout.Button(Localizer.Format("#LOC_SHIPENGOP_common_loadMass")))
             {
                 if (EditorLogic.fetch != null && EditorLogic.fetch.ship != null)
                 {

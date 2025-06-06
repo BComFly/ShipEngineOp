@@ -7,20 +7,21 @@ namespace ShipEngineOptimization
 {
     public class SEO_Functions
     {
-        public const float sGravi = 9.80665f;
+        public static float standardGravity = (float)(Planetarium.fetch.Home.gravParameter / (Planetarium.fetch.Home.Radius * Planetarium.fetch.Home.Radius));
+        public static float surfaceGravity = standardGravity;
         public static float DvLimit(float weight, float thrust, float isp, float wdr, float xTWR)
         {
-            float a = 1 / ((thrust / (weight * sGravi * xTWR)) - 1);
-            float b = isp * sGravi * UnityEngine.Mathf.Log((1 + a) / ((1 / wdr) + a));
+            float a = 1 / ((thrust / (weight * surfaceGravity * xTWR)) - 1);
+            float b = isp * standardGravity * UnityEngine.Mathf.Log((1 + a) / ((1 / wdr) + a));
 
             return b;
         }
 
         public static float WeightToPayload(float weight, float thrust, float isp, float wdr, float dv, float twr)
         {
-            float a = UnityEngine.Mathf.Exp(dv / (sGravi * isp));
+            float a = UnityEngine.Mathf.Exp(dv / (standardGravity * isp));
             float b = ((1 / a - 1 / wdr) / (1 - 1 / wdr));
-            float c = (1 / (b - (weight * sGravi * twr) / (thrust)));
+            float c = (1 / (b - (weight * surfaceGravity * twr) / (thrust)));
 
             return c;
         }
@@ -35,14 +36,14 @@ namespace ShipEngineOptimization
             //{
 
             //}
-            float a = (payload + (float)qtyEng * weightEng) * (1 + wdr / ((wdr - 1) / (Mathf.Exp(dv / (sGravi * isp)) - 1) - 1));
+            float a = (payload + (float)qtyEng * weightEng) * (1 + wdr / ((wdr - 1) / (Mathf.Exp(dv / (standardGravity * isp)) - 1) - 1));
             return a;
         }
 
         public static float DvFromTwr(float weightEng, float thrust, float isp, float wdr, float totalWeight, float payload, int numEng)
         {
             float a = (totalWeight - payload - numEng * weightEng) * (1 - 1 / wdr);
-            float b = isp * sGravi * Mathf.Log(1 / (1 - a / totalWeight));
+            float b = isp * standardGravity * Mathf.Log(1 / (1 - a / totalWeight));
             return b;
         }
 
@@ -50,8 +51,8 @@ namespace ShipEngineOptimization
         {
             if (twr == 0) { return 1; }
 
-            float e = Mathf.Exp( dv / (sGravi*isp) );
-            float a = thrust / (sGravi * twr);
+            float e = Mathf.Exp( dv / (standardGravity *isp) );
+            float a = thrust / (surfaceGravity * twr);
             float b = (1 - wdr / e) / (1 - wdr);
             float c = payload / (a * b - weightEng);
             return Mathf.CeilToInt(c);
@@ -59,12 +60,10 @@ namespace ShipEngineOptimization
 
         public static List<float> TickGen(float min, float max)
         {
-            float expo = Mathf.Floor(Mathf.Log10(max - min));
-
+            int expo = Mathf.FloorToInt(Mathf.Log10(max - min));
             float sig = (max - min) / Mathf.Pow(10, expo);
 
             List<float> tickList = new List<float>{0};
-            //tickList.Clear();
 
             float spaces;
             switch (sig)
@@ -83,23 +82,9 @@ namespace ShipEngineOptimization
                     break;
             }
 
-            //for (int i = 0; tickList[tickList.Count - 1] < max; i++)
-            //{
-            //    float a = tickList[tickList.Count - 1] + spaces * Mathf.Pow(10, expo);
-            //    tickList.Add(a);
-            //}
-
-            //do
-            //{
-            //    float a = tickList[tickList.Count - 1] + spaces * Mathf.Pow(10, expo);
-            //    tickList.Add(a);
-            //}
-            //while (tickList[tickList.Count - 1] < max);
-
             while (tickList[tickList.Count - 1] < max)
             {
                 float a = tickList[tickList.Count - 1] + spaces * Mathf.Pow(10, expo);
-                //if (a <= max)
                 tickList.Add(a);
             }
             

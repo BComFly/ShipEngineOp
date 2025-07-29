@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using KSP.Localization;
 using KSP.UI.Screens;
+using RealFuels;
 using UnityEngine;
 
 
@@ -422,8 +423,10 @@ namespace ShipEngineOptimization
 
         static void RefreshEngineParts()
         {
-            var availableParts = PartLoader.LoadedPartsList;
+            bool realFuelsInstalled = AssemblyLoader.loadedAssemblies.Any(a => a.assembly.GetName().Name.Equals("RealFuels", StringComparison.OrdinalIgnoreCase));
 
+            var availableParts = PartLoader.LoadedPartsList;
+            Debug.Log("activate refresh engine");
             engineData.Clear();
             groupedEngines.Clear();
 
@@ -438,36 +441,120 @@ namespace ShipEngineOptimization
                         continue;
                 }
 
-                if (part.partPrefab != null && (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX")))
+                if (part.partPrefab == null)
+                { continue; }
+                else if (realFuelsInstalled)
+                { FindEngineDataRF(part); }
+                else
+                {  FindEngineData(part); }
+                //else if (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX"))
+                //{
+                //    if (part.partPrefab.Modules.Contains("MultiModeEngine"))
+                //    {
+                //        string engineName;
+                //        var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+                //        foreach (var engineModule in part.partPrefab.FindModulesImplementing<ModuleEngines>())
+                //        {
+                //            int modeIdx;
+                //            if (engineModule.engineID == multiModeModule.primaryEngineID)
+                //            {                              
+                //                engineName = multiModeModule.primaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.primaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.primaryEngineID})";
+                //                modeIdx = 1;
+                //            }
+                //            else
+                //            {
+                //                engineName = multiModeModule.secondaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.secondaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.secondaryEngineID})";
+                //                modeIdx = 2;
+                //            }
+                //            SetEngineData(engineName, part.partPrefab.mass, engineModule, part.name, modeIdx);
+                //        }
+                //    }
+                //    else
+                //    { 
+                //        var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
+                //        if (engineModule != null)
+                //        {
+                //            SetEngineData(part.title, part.partPrefab.mass, engineModule, part.name, 0);
+                //        }
+                //    }
+                //}
+            }
+        }
+
+        static void FindEngineData(AvailablePart part)
+        {
+            if (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX"))
+            {
+                if (part.partPrefab.Modules.Contains("MultiModeEngine"))
                 {
-                    if (part.partPrefab.Modules.Contains("MultiModeEngine"))
+                    string engineName;
+                    var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+                    foreach (var engineModule in part.partPrefab.FindModulesImplementing<ModuleEngines>())
                     {
-                        string engineName;
-                        var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
-                        foreach (var engineModule in part.partPrefab.FindModulesImplementing<ModuleEngines>())
+                        int modeIdx;
+                        if (engineModule.engineID == multiModeModule.primaryEngineID)
                         {
-                            int modeIdx;
-                            if (engineModule.engineID == multiModeModule.primaryEngineID)
-                            {                              
-                                engineName = multiModeModule.primaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.primaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.primaryEngineID})";
-                                modeIdx = 1;
-                            }
-                            else
-                            {
-                                engineName = multiModeModule.secondaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.secondaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.secondaryEngineID})";
-                                modeIdx = 2;
-                            }
-                            SetEngineData(engineName, part.partPrefab.mass, engineModule, part.name, modeIdx);
+                            engineName = multiModeModule.primaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.primaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.primaryEngineID})";
+                            modeIdx = 1;
                         }
-                    }
-                    else
-                    { 
-                        var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
-                        if (engineModule != null)
+                        else
                         {
-                            SetEngineData(part.title, part.partPrefab.mass, engineModule, part.name, 0);
+                            engineName = multiModeModule.secondaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.secondaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.secondaryEngineID})";
+                            modeIdx = 2;
                         }
+                        SetEngineData(engineName, part.partPrefab.mass, engineModule, part.name, modeIdx);
                     }
+                }
+                else
+                {
+                    var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
+                    if (engineModule != null)
+                    {
+                        SetEngineData(part.title, part.partPrefab.mass, engineModule, part.name, 0);
+                    }
+                }
+            }
+        }
+
+        static void FindEngineDataRF(AvailablePart part)
+        {
+            if (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX"))
+            {
+                if (part.partPrefab.Modules.Contains("MultiModeEngine"))
+                {
+                    string engineName;
+                    var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+                    foreach (var engineModule in part.partPrefab.FindModulesImplementing<ModuleEngines>())
+                    {
+                        int modeIdx;
+                        if (engineModule.engineID == multiModeModule.primaryEngineID)
+                        {
+                            engineName = multiModeModule.primaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.primaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.primaryEngineID})";
+                            modeIdx = 1;
+                        }
+                        else
+                        {
+                            engineName = multiModeModule.secondaryEngineModeDisplayName != null ? part.title + $" ({multiModeModule.secondaryEngineModeDisplayName})" : part.title + $" ({multiModeModule.secondaryEngineID})";
+                            modeIdx = 2;
+                        }
+                        SetEngineData(engineName, part.partPrefab.mass, engineModule, part.name, modeIdx);
+                    }
+                }
+                else
+                {
+                    var engineModule = part.partPrefab.Modules.GetModule<ModuleEngines>();
+                    if (engineModule != null)
+                    {
+                        SetEngineData(part.title, part.partPrefab.mass, engineModule, part.name, 0);
+                    }
+                }
+            }
+            else if (part.partPrefab.Modules.Contains("ModuleEnginesRF"))
+            {
+                var engineModule = part.partPrefab.Modules.GetModule<ModuleEnginesRF>();
+                if (engineModule != null)
+                {
+                    SetEngineDataRF(part.title, part.partPrefab.mass, engineModule, part.name, 0);
                 }
             }
         }
@@ -523,7 +610,6 @@ namespace ShipEngineOptimization
 
         static void SetEngineData (string name, float weight, ModuleEngines engineModule, string internalName, int modeIdx)
         {
-            //var propellantNames = string.Join(", ", engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge"));
             var propellantNames = GetSortedFuelType(engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge"));
             if (propellantNames.Contains("SolidFuel")) return;
 
@@ -533,25 +619,37 @@ namespace ShipEngineOptimization
                 var localizedNames = engineModule.propellants
                     .Where(p => p.name != "ElectricCharge")
                     .Select(p => PartResourceLibrary.Instance.GetDefinition(p.name)?.displayName ?? p.name);
-                //fuelDisplayNames[propellantNames] = string.Join(", ", localizedNames);
                 propellantDisplayNames[propellantNames] = string.Join(Localizer.Format("#LOC_SHIPENGOP_joint"), localizedNames);
             }
             groupedEngines[propellantNames].Add(name);
 
-            //var planet = FlightGlobals.Bodies.FirstOrDefault(b => b.bodyName == selectedPlanet);
-            //if (planet == null) return;
-
-            //float pressure = (float)FlightGlobals.getStaticPressure(selectedAltitude, planet) / standardAtm;
-            //float ispAtAltitude = engineModule.atmosphereCurve.Evaluate(pressure);
-            //float thrustAtAltitude = (ispAtAltitude / engineModule.atmosphereCurve.Evaluate(0)) * engineModule.maxThrust;
-
             var propRatios = engineModule.propellants.Where(p => p.name != "ElectricCharge" && p.name != "IntakeAir").ToDictionary(p => p.name, p => p.ratio);
-            //float wdrTotal = 1f;
             float wdrTotal = GetWdrTotal(propRatios);
 
             engineData[name] = (weight, engineModule.maxThrust, engineModule.atmosphereCurve.Evaluate(0), wdrTotal, internalName, modeIdx);
             additionalWeight[name] = (false, 0);
-            //engineData[name] = (weight, thrustAtAltitude, ispAtAltitude, wdrTotal, internalName, modeIdx);
+        }
+
+        static void SetEngineDataRF(string name, float weight, ModuleEnginesRF engineModule, string internalName, int modeIdx)
+        {
+            var propellantNames = GetSortedFuelType(engineModule.propellants.Select(p => p.name).Where(p => p != "ElectricCharge"));
+            if (propellantNames.Contains("SolidFuel")) return;
+
+            if (!groupedEngines.ContainsKey(propellantNames))
+            {
+                groupedEngines[propellantNames] = new List<string>();
+                var localizedNames = engineModule.propellants
+                    .Where(p => p.name != "ElectricCharge")
+                    .Select(p => PartResourceLibrary.Instance.GetDefinition(p.name)?.displayName ?? p.name);
+                propellantDisplayNames[propellantNames] = string.Join(Localizer.Format("#LOC_SHIPENGOP_joint"), localizedNames);
+            }
+            groupedEngines[propellantNames].Add(name);
+
+            var propRatios = engineModule.propellants.Where(p => p.name != "ElectricCharge" && p.name != "IntakeAir").ToDictionary(p => p.name, p => p.ratio);
+            float wdrTotal = GetWdrTotal(propRatios);
+
+            engineData[name] = (weight, engineModule.maxThrust, engineModule.atmosphereCurve.Evaluate(0), wdrTotal, internalName, modeIdx);
+            additionalWeight[name] = (false, 0);
         }
 
         static float GetWdrTotal(Dictionary<string, float> propRatios)

@@ -10,7 +10,7 @@ namespace ShipEngineOptimization
     public class SEO_GraphWindow
     {
         static float xMax_dvGraph = 2.0f;
-        static List<Color> colorSequence = new List<Color> { Color.green, Color.blue, Color.red };
+        static List<Color> colorSequence = new List<Color> { Color.green, Color.blue, Color.red, Color.yellow, Color.magenta, Color.cyan };
         static float[] globalDvRange = new float[2];
         static float[] globalTwrRange = new float[2]; // [0]=min [1]=max
         static float[] trueXRange = new float[2];

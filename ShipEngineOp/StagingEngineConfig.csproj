@@ -35,6 +35,14 @@
       <HintPath>E:\Steam\steamapps\common\Kerbal Space Program\KSP_x64_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="RealFuels">
+      <HintPath>E:\Kerbal Space Program_1.12.5_cn_mod\GameData\RealFuels\Plugins\RealFuels.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="SolverEngines">
+      <HintPath>E:\Kerbal Space Program_1.12.5_cn_mod\GameData\SolverEngines\Plugins\SolverEngines.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -73,6 +81,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Localization\ru.cfg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="SEO_CommonFunctions.cs" />
     <None Include="SEO_GraphWindow_lecacy.cs" />
     <Compile Include="SEO_EngineStats.cs" />

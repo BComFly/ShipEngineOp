@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using KSP.Localization;
+using RealFuels;
+using RealFuels.TechLevels;
 using UnityEngine;
 
 
@@ -173,8 +175,10 @@ namespace ShipEngineOptimization
         {
             var data = SEO_Main.engineData[engineName];
 
-            float realIsp = GetIsp(data.internalName, atm, data.modeIdx);
-            float realThrust = (realIsp / data.isp) * data.thrust;
+            //float realIsp = GetIsp(data.internalName, atm, data.modeIdx);
+            //float realThrust = (realIsp / data.isp) * data.thrust;
+
+            (float realIsp, float realThrust) = GetIspAndThrust(engineName, data.internalName, atm, data.modeIdx);
 
             //Debug.Log("isp = " + realIsp.ToString());
             //Debug.Log("thrust = " + realThrust.ToString());
@@ -193,32 +197,121 @@ namespace ShipEngineOptimization
         }
 
 
-        float GetIsp(string internalName, float atm, int modeIdx)
+        //float GetIsp(string internalName, float atm, int modeIdx)
+        //{
+        //    var part = PartLoader.LoadedPartsList.FirstOrDefault(p => p.name == internalName);
+        //    if (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX"))
+        //    {
+        //        if ( modeIdx == 0)
+        //        {               
+        //            var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
+
+        //            if (part == null || engineModule == null) { return 0f; }
+
+        //            //Debug.Log(internalName);
+        //            //Debug.Log(part.title);
+        //            //Debug.Log("atm = " + atm.ToString());
+        //            return engineModule.atmosphereCurve.Evaluate(atm);
+        //        }
+        //        else
+        //        {
+        //            var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+
+        //            string engineMode = modeIdx == 1 ? multiModeModule.primaryEngineID : multiModeModule.secondaryEngineID;
+
+        //            //Debug.Log(part.title);
+        //            var engineModule = part.partPrefab.FindModulesImplementing<ModuleEngines>().FirstOrDefault(e => e.engineID == engineMode);
+        //            //Debug.Log(engineMode);
+        //            //Debug.Log(engineModule.atmosphereCurve.Evaluate(atm));
+        //            return engineModule.atmosphereCurve.Evaluate(atm);
+        //        }
+        //    }
+        //    else
+        //    { return GetIspRF(part, atm); }
+        //}
+
+        (float isp, float thrust) GetIspAndThrust(string name, string internalName, float atm, int modeIdx)
         {
             var part = PartLoader.LoadedPartsList.FirstOrDefault(p => p.name == internalName);
-            if ( modeIdx == 0)
-            {               
-                var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
+            float realIsp;
+            float realThrust;
+            if (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX"))
+            {
+                if (modeIdx == 0)
+                {
+                    var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
 
-                if (part == null || engineModule == null) { return 0f; }
+                    if (part == null || engineModule == null) { return (0f, 0f); }
 
-                //Debug.Log(internalName);
-                //Debug.Log(part.title);
-                //Debug.Log("atm = " + atm.ToString());
-                return engineModule.atmosphereCurve.Evaluate(atm);
+                    //Debug.Log(internalName);
+                    //Debug.Log(part.title);
+                    //Debug.Log("atm = " + atm.ToString());
+                    realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+                    realThrust = (realIsp / engineModule.atmosphereCurve.Evaluate(0)) * engineModule.maxThrust;
+                    return (realIsp, realThrust);
+                }
+                else
+                {
+                    var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+
+                    string engineMode = modeIdx == 1 ? multiModeModule.primaryEngineID : multiModeModule.secondaryEngineID;
+
+                    //Debug.Log(part.title);
+                    var engineModule = part.partPrefab.FindModulesImplementing<ModuleEngines>().FirstOrDefault(e => e.engineID == engineMode);
+                    //Debug.Log(engineMode);
+                    //Debug.Log(engineModule.atmosphereCurve.Evaluate(atm));
+                    realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+                    realThrust = (realIsp / engineModule.atmosphereCurve.Evaluate(0)) * engineModule.maxThrust;
+                    return (realIsp, realThrust);
+                }
+            }
+            else
+            { return GetIspAndThrustRF(name, part, atm, modeIdx); }
+        }
+
+        (float isp, float thrust) GetIspAndThrustRF(string name, AvailablePart part, float atm, int modeIdx)
+        {
+            var moduleConfig = part.partPrefab.Modules.GetModule<ModuleEngineConfigs>();
+            var config = moduleConfig.configs[modeIdx];
+            float realIsp;
+            float realThrust;
+            float maxIsp;
+            //var config = part.partPrefab.Modules.GetModule<ModuleEngineConfigs>().configs[modeIdx];
+            ConfigNode atmosphereCurveNode = config.GetNode("atmosphereCurve");
+            if (atmosphereCurveNode != null)
+            {
+                FloatCurve atmCurve = new FloatCurve();
+                atmCurve.Load(atmosphereCurveNode);
+
+                maxIsp = atmCurve.Evaluate(0);
+                realIsp = atmCurve.Evaluate(atm);
+
             }
             else
             {
-                var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+                TechLevel cTL = new TechLevel();
+                ConfigNode techNodes = moduleConfig.techNodes;
 
-                string engineMode = modeIdx == 1 ? multiModeModule.primaryEngineID : multiModeModule.secondaryEngineID;
+                if (!cTL.Load(config, techNodes, moduleConfig.engineType, moduleConfig.techLevel))
+                    cTL = null;
 
-                //Debug.Log(part.title);
-                var engineModule = part.partPrefab.FindModulesImplementing<ModuleEngines>().FirstOrDefault(e => e.engineID == engineMode);
-                //Debug.Log(engineMode);
-                //Debug.Log(engineModule.atmosphereCurve.Evaluate(atm));
-                return engineModule.atmosphereCurve.Evaluate(atm);
+                float.TryParse(config.GetValue("IspV"), out float ispV);
+                float.TryParse(config.GetValue("IspSL"), out float ispSL);
+
+                FloatCurve newAtmoCurve = Utilities.Mod(cTL.AtmosphereCurve, ispSL, ispV);
+
+                maxIsp = newAtmoCurve.Evaluate(0);
+                realIsp = newAtmoCurve.Evaluate(atm);
             }
+            realThrust = SEO_Main.engineData[name].thrust * realIsp / maxIsp;
+
+            return (realIsp,  realThrust);
+        }
+
+        float GetIspRF (AvailablePart part, float atm)
+        {
+            var engineModuleRF = part?.partPrefab?.Modules.GetModule<ModuleEnginesRF>();
+            return engineModuleRF.atmCurveIsp.Evaluate(atm);
         }
 
         float GetWeightTotal(float weightEng, float thrust, float isp, float wdr, float payload, float dv, float twr)

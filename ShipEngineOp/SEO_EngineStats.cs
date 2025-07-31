@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using KSP.Localization;
+using RealFuels;
+using RealFuels.TechLevels;
+using CommNet.Network;
 
 
 namespace ShipEngineOptimization
@@ -122,21 +125,85 @@ namespace ShipEngineOptimization
             float atm = (float)FlightGlobals.getStaticPressure(altitude, planet) / SEO_Main.standardAtm;
 
             var part = PartLoader.LoadedPartsList.FirstOrDefault(p => p.name == engineData.internalName);
-            if (engineData.modeIdx == 0)
+            if (part.partPrefab.Modules.Contains("ModuleEngines") || part.partPrefab.Modules.Contains("ModuleEnginesFX"))
             {
-                var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
-                if (part == null || engineModule == null) { realIsp = 0f; }
-                realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+                if (engineData.modeIdx == 0)
+                {
+                    var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
+                    if (part == null || engineModule == null) { realIsp = 0f; }
+                    realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+                }
+                else
+                {
+                    var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+                    string engineMode = engineData.modeIdx == 1 ? multiModeModule.primaryEngineID : multiModeModule.secondaryEngineID;
+                    var engineModule = part.partPrefab.FindModulesImplementing<ModuleEngines>().FirstOrDefault(e => e.engineID == engineMode);
+                    realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+                }
+                realThrust = engineData.thrust * (realIsp / engineData.isp);
+            }
+            else if (SEO_Main.realFuelsInstalled)
+            { SetIspAndThrustRF(part, engineData.thrust, atm, engineData.modeIdx); }
+
+        }
+
+        void SetIspAndThrustRF(AvailablePart part, float maxThrust, float atm, int modeIdx)
+        {
+            var moduleConfig = part.partPrefab.Modules.GetModule<ModuleEngineConfigs>();
+            var config = moduleConfig.configs[modeIdx];
+            float maxIsp;
+            //var config = part.partPrefab.Modules.GetModule<ModuleEngineConfigs>().configs[modeIdx];
+            ConfigNode atmosphereCurveNode = config.GetNode("atmosphereCurve");
+            if (atmosphereCurveNode != null)
+            {
+                FloatCurve atmCurve = new FloatCurve();
+                atmCurve.Load(atmosphereCurveNode);
+
+                maxIsp = atmCurve.Evaluate(0);
+                realIsp = atmCurve.Evaluate(atm);
+
             }
             else
             {
-                var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
-                string engineMode = engineData.modeIdx == 1 ? multiModeModule.primaryEngineID : multiModeModule.secondaryEngineID;
-                var engineModule = part.partPrefab.FindModulesImplementing<ModuleEngines>().FirstOrDefault(e => e.engineID == engineMode);
-                realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+                TechLevel cTL = new TechLevel();
+                ConfigNode techNodes = moduleConfig.techNodes;
+
+                if (!cTL.Load(config, techNodes, moduleConfig.engineType, moduleConfig.techLevel))
+                    cTL = null;
+
+                float.TryParse(config.GetValue("IspV"), out float ispV);
+                float.TryParse(config.GetValue("IspSL"), out float ispSL);
+
+                FloatCurve newAtmoCurve = Utilities.Mod(cTL.AtmosphereCurve, ispSL, ispV);
+
+                maxIsp = newAtmoCurve.Evaluate(0);
+                realIsp = newAtmoCurve.Evaluate(atm);
             }
-            realThrust = engineData.thrust * (realIsp / engineData.isp);
+            realThrust = maxThrust * realIsp / maxIsp;
         }
+        //void SetIspAndThrust()
+        //{
+        //    var planet = FlightGlobals.Bodies.FirstOrDefault(b => b.bodyName == planetNameStr);
+        //    if (planet == null) return;
+
+        //    float atm = (float)FlightGlobals.getStaticPressure(altitude, planet) / SEO_Main.standardAtm;
+
+        //    var part = PartLoader.LoadedPartsList.FirstOrDefault(p => p.name == engineData.internalName);
+        //    if (engineData.modeIdx == 0)
+        //    {
+        //        var engineModule = part?.partPrefab?.Modules.GetModule<ModuleEngines>();
+        //        if (part == null || engineModule == null) { realIsp = 0f; }
+        //        realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+        //    }
+        //    else
+        //    {
+        //        var multiModeModule = part.partPrefab.Modules.GetModule<MultiModeEngine>();
+        //        string engineMode = engineData.modeIdx == 1 ? multiModeModule.primaryEngineID : multiModeModule.secondaryEngineID;
+        //        var engineModule = part.partPrefab.FindModulesImplementing<ModuleEngines>().FirstOrDefault(e => e.engineID == engineMode);
+        //        realIsp = engineModule.atmosphereCurve.Evaluate(atm);
+        //    }
+        //    realThrust = engineData.thrust * (realIsp / engineData.isp);
+        //}
 
         public float[] CalcDvLimit(float[] x)
         {
